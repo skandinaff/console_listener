@@ -1,3 +1,0 @@
-[submodule "debug"]
-	path = debug
-	url = https://github.com/david-cattermole/cpp-utilities.git

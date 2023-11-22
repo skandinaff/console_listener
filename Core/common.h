@@ -5,6 +5,19 @@
 #include <iostream>
 #include <filesystem>
 
+#include <thread>
+#include <queue>
+#include <fcntl.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+#include <boost/asio.hpp>
+#include <boost/asio/serial_port.hpp>
+#include <boost/bind/bind.hpp>
+
+#include <boost/log/core.hpp>
+#include <boost/log/trivial.hpp>
+
 
 #ifdef IS_ARMBIAN
     static constexpr auto serial_port_name = "/dev/ttyS1";

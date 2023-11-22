@@ -1,20 +1,9 @@
 #include <iostream>
-#include <thread>
-#include <queue>
-#include <fcntl.h>
-#include <sys/syscall.h>
-#include <unistd.h>
-
-
-#include <boost/asio.hpp>
-#include <boost/asio/serial_port.hpp>
-#include <boost/bind/bind.hpp>
-
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
 
 #include "common.h"
 #include "lockfile.hpp"
+#include "serial_port_listener.h"
+#include "../debug/include/debugUtils.h"
 
 
 
@@ -59,34 +48,6 @@ std::string get_available_commands(const std::unordered_map<std::string, std::pa
     return result;
 }
 
-void serial_port_listener(mState& state, 
-                        boost::asio::serial_port& serial_port, 
-                        std::mutex& state_mutex,
-                        std::condition_variable& state_cv, 
-                        std::queue<std::string>& data_queue,
-                        std::atomic<bool>& exit_flag
-                        )
-{
-    pid_t tid = syscall(SYS_gettid); std::cout << "Serial Port Thread LWP ID: " << tid << std::endl;
-    //DEBUG_PRINT("Serial Port Thread LWP ID: ", tid);
-    while (!exit_flag.load()) {
-        if(exit_flag) break;
-        std::string line;
-        boost::asio::read_until(serial_port, boost::asio::dynamic_buffer(line), '\n');
-        line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
-        line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
-        {
-            std::lock_guard<std::mutex> lock(state_mutex);
-            data_queue.push(line);
-            state_cv.notify_all();
-            cout << "serial intput received: " << line << endl;
-            if(line == "exit") break;
-        }
-    }
-    cout << "Left serial listener..."  << endl;
-    serial_port.close();
-}
-
 void console_input_listener(mState& state,
                         std::mutex& state_mutex, 
                         std::condition_variable& state_cv, 
@@ -96,8 +57,7 @@ void console_input_listener(mState& state,
 {
     std::string input;
     pid_t tid = syscall(SYS_gettid); 
-    //std::cout << "Console listener Thread LWP ID: " << tid << std::endl;
-    //DEBUG_PRINT("Console listener Thread LWP ID: ", tid);
+    INFO("Console listener Thread LWP ID: " << tid);
     while (!exit_flag.load()) {
         if(exit_flag) break;
         if (!std::getline(std::cin, input) || std::cin.eof()) {
@@ -113,9 +73,9 @@ void console_input_listener(mState& state,
             }
         }
     }
-    cout << "Left console input..."  << endl;
+    INFO( "Left console input..."  );
 }
-/**/
+
 void decode_cmd(std::string cmd, mState& state, mState& prev_state, std::condition_variable& state_cv){
     if(cmd.empty()){
         state = IDLE;
@@ -128,12 +88,12 @@ void decode_cmd(std::string cmd, mState& state, mState& prev_state, std::conditi
         state = iter->second.first;
     }   
     else {
-        std::cout << "Unknown command. " << get_available_commands(command_map) << std::endl;
-        state = IDLE;
+        std::cout << "Unknown command. ";
+        state = HELP;
     }
-    std::cout << "State changed from " << prev_state << " to " << state << std::endl;
+    INFO("State changed from " << prev_state << " to " << state );
     prev_state = state;
-    std::cout << "Left cmd decoder..." << std::endl;
+    //INFO("Left cmd decoder..." );
 }
 
 void state_machine(mState& state, 
@@ -146,7 +106,8 @@ void state_machine(mState& state,
                    std::atomic<bool>& data_ready
                    )
 {
-    pid_t tid = syscall(SYS_gettid); std::cout << "State Machine Thread LWP ID: " << tid << std::endl;
+    pid_t tid = syscall(SYS_gettid); 
+    INFO( "State Machine Thread LWP ID: " << tid );
     int files_in_folder = 0;
     bool idle_msg_printed = false;
     bool auto_process = false;
@@ -170,7 +131,7 @@ void state_machine(mState& state,
                 break;
             }
             case INIT: {
-                std::cout << "In INIT state" << std::endl;
+                INFO("In INIT state" );
                 if(!init_done){
                     // Do the init
                     init_done = true;
@@ -179,7 +140,7 @@ void state_machine(mState& state,
                 break;
             }
             case READ_CMD: {
-                std::cout << "In READ_CMD state" << std::endl;
+                INFO("In READ_CMD state" );
                 std::string cmd;
                 {
                     std::lock_guard<std::mutex> lock(state_mutex);
@@ -187,7 +148,7 @@ void state_machine(mState& state,
                     data_queue.pop();
                 }
                 idle_msg_printed = false;
-                std::cout << "Received command: " << cmd << std::endl;
+                INFO("Received command: " << cmd);
                 decode_cmd(cmd, state, prev_state, state_cv);
                 break;
             }      
@@ -197,7 +158,7 @@ void state_machine(mState& state,
                 break;
             }
             case EXIT: {
-                std::cout << "Entered Exit State" << std::endl;
+                INFO("Entered Exit State");
 #ifndef DEBUG
                 remove_lockfile();
 #endif
@@ -213,14 +174,14 @@ void state_machine(mState& state,
             }
         }
     }
-    cout << "Left state machine..."  << endl;
-    exit(0); // TODO: resolve three thread exit.
+    INFO("Left state machine...");
+    //exit(0); // TODO: resolve thread exit when with serial thread.
 }
 
 
 int main(int argc, char* argv[])
 {
-    cout << "Starting program..." << endl;
+    INFO("Starting program...");
     check_arguments(argc, argv);
 #ifndef DEBUG
     if (lockfile_exists()) {
@@ -277,9 +238,7 @@ int main(int argc, char* argv[])
     state_machine_thread.join();
     console_thread.join();
 
-
-    
-    cout << "Program finished." << endl;
+    INFO("Program finished.");
 
     return 0;
 }

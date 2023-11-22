@@ -6,7 +6,7 @@
 #include "common.h"
 #include "../debug/include/debugUtils.h"
 
-void serial_port_listener(std::string& state,
+void serial_port_listener(mState& state,
                            boost::asio::serial_port& serial_port,
                            std::mutex& state_mutex,
                            std::condition_variable& state_cv,

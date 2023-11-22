@@ -3,7 +3,7 @@ project(CL)
 include(CheckSystem.cmake)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -fPIC")
 
 set(SOURCES
@@ -12,7 +12,7 @@ set(SOURCES
 
 if (IS_ARMBIAN OR IS_RASPBIAN)
     message(STATUS "Configuring for system with serail port")
-    #list(APPEND SOURCES Core/serial_port_listener.cpp)
+    list(APPEND SOURCES Core/serial_port_listener.cpp)
 endif()
 
 add_executable(CL ${SOURCES})

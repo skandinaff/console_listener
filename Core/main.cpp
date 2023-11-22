@@ -2,20 +2,10 @@
 
 #include "common.h"
 #include "lockfile.hpp"
-#include "serial_port_listener.h"
+//#include "serial_port_listener.h"
 #include "../debug/include/debugUtils.h"
 
-
-
-using namespace std;
 using namespace boost::asio;
-
-std::unordered_map<std::string, std::pair<mState, std::string>> command_map = {
-        {"idle", {IDLE, "Idle state"}},
-        {"init", {INIT, "Initialize"}},
-        {"exit", {EXIT, "Exit app"}},
-        {"help", {HELP, "Show this list"}}
-};
 
 mState state = IDLE;
 mState prev_state = IDLE;
@@ -24,14 +14,22 @@ std::condition_variable state_cv;
 std::atomic<bool> exit_flag(false);
 std::atomic<bool> data_ready(false);
 
+std::unordered_map<std::string, std::pair<mState, std::string>> command_map = {
+        {"idle", {IDLE, "Idle state"}},
+        {"init", {INIT, "Initialize"}},
+        {"exit", {EXIT, "Exit app"}},
+        {"help", {HELP, "Show this list"}}
+};
+
+
 void check_arguments(int argc, char* argv[]){
 
-    if (argc > 1 && string(argv[1]) == "-I") {
-        cout << "arg: I" << endl;
-        state = mState::INIT;
-    } else if (argc > 1 && string(argv[1]) == "-h") {
-        cout << "arg: h" << endl;
-        state = mState::HELP;
+    if (argc > 1 && std::string(argv[1]) == "-I") {
+        std::cout << "arg: I" << std::endl;
+        state = INIT;
+    } else if (argc > 1 && std::string(argv[1]) == "-h") {
+        std::cout << "arg: h" << std::endl;
+        state = HELP;
     }
 }
 
@@ -47,7 +45,33 @@ std::string get_available_commands(const std::unordered_map<std::string, std::pa
     }
     return result;
 }
-
+void serial_port_listener(mState& state, 
+                        boost::asio::serial_port& serial_port, 
+                        std::mutex& state_mutex,
+                        std::condition_variable& state_cv, 
+                        std::queue<std::string>& data_queue,
+                        std::atomic<bool>& exit_flag
+                        )
+{
+    pid_t tid = syscall(SYS_gettid);
+    INFO("Serial Port Thread LWP ID: " << tid);
+    while (!exit_flag.load()) {
+        if(exit_flag) break;
+        std::string line;
+        boost::asio::read_until(serial_port, boost::asio::dynamic_buffer(line), '\n');
+        line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+        line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+        {
+            std::lock_guard<std::mutex> lock(state_mutex);
+            data_queue.push(line);
+            state_cv.notify_all();
+            INFO("serial intput received: " );
+            if(line == "exit") break;
+        }
+    }
+    INFO("Left serial listener...");
+    serial_port.close();
+}
 void console_input_listener(mState& state,
                         std::mutex& state_mutex, 
                         std::condition_variable& state_cv, 
@@ -175,7 +199,7 @@ void state_machine(mState& state,
         }
     }
     INFO("Left state machine...");
-    //exit(0); // TODO: resolve thread exit when with serial thread.
+    exit(0); // TODO: resolve thread exit when with serial thread.
 }
 
 
@@ -185,7 +209,7 @@ int main(int argc, char* argv[])
     check_arguments(argc, argv);
 #ifndef DEBUG
     if (lockfile_exists()) {
-        cerr << "Error: Another instance of the program is already running." << endl;
+        std::cerr << "Error: Another instance of the program is already running." << std::endl;
         return 1;
     }
     signal(SIGINT, signal_handler);
@@ -220,6 +244,7 @@ int main(int argc, char* argv[])
     serial_port.open(serial_port_name);
     serial_port.set_option(boost::asio::serial_port_base::baud_rate(baud_rate_number));
     boost::asio::write(serial_port, boost::asio::buffer("CamProc started! State: Idle"));
+    
     std::thread serial_thread(serial_port_listener, 
                                     std::ref(state), 
                                     std::ref(serial_port), 
@@ -228,6 +253,8 @@ int main(int argc, char* argv[])
                                     std::ref(data_queue),
                                     std::ref(exit_flag)
                                     );
+                                    
+    
 #endif
 
 

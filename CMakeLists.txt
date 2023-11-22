@@ -12,7 +12,7 @@ set(SOURCES
 
 if (IS_ARMBIAN OR IS_RASPBIAN)
     message(STATUS "Configuring for system with serail port")
-    list(APPEND SOURCES Core/serial_port_listener.cpp)
+    #list(APPEND SOURCES Core/serial_port_listener.cpp)
 endif()
 
 add_executable(CL ${SOURCES})
@@ -21,7 +21,7 @@ find_package(Threads REQUIRED)
 
 
 if (IS_ARMBIAN OR IS_RASPBIAN)
-    #target_compile_definitions(CL PRIVATE WITH_SERIAL)
+    target_compile_definitions(CL PRIVATE WITH_SERIAL)
     if(IS_ARMBIAN)
         target_compile_definitions(CL PRIVATE IS_ARMBIAN)
     elseif(IS_RASPBIAN)

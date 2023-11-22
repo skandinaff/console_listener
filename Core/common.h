@@ -35,6 +35,14 @@ enum mState {
     EXIT
 };
 
+extern mState state;
+extern mState prev_state;
+extern std::mutex state_mutex;
+extern std::condition_variable state_cv;
+extern std::atomic<bool> exit_flag;
+extern std::atomic<bool> data_ready;
+
+
 /// @brief adds a path /home/<username> to a <filename>
 /// @param filename 
 /// @return "/home/<username>/<filename>"

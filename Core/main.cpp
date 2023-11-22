@@ -160,7 +160,7 @@ void state_machine(mState& state,
                     cmd = data_queue.front();
                     data_queue.pop();
                 }
-                idle_msg_printed = false;
+                //idle_msg_printed = false;
                 //INFO("Received command: " << cmd);
                 decode_cmd(cmd, state, prev_state, state_cv);
                 break;
@@ -240,7 +240,7 @@ int main(int argc, char* argv[])
 #ifdef WITH_SERIAL
     serial_port.open(serial_port_name);
     serial_port.set_option(boost::asio::serial_port_base::baud_rate(baud_rate_number));
-    boost::asio::write(serial_port, boost::asio::buffer("CamProc started! State: Idle"));
+    boost::asio::write(serial_port, boost::asio::buffer("CL app started! State: Idle"));
     
     std::thread serial_thread(serial_port_listener, 
                                     std::ref(state), 

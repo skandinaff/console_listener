@@ -4,6 +4,9 @@
 #include "lockfile.hpp"
 #include "serial_port_listener.h"
 #include "../debug/include/debugUtils.h"
+#include <termios.h>
+
+struct termios orig_termios;
 
 using namespace boost::asio;
 
@@ -20,8 +23,12 @@ std::unordered_map<std::string, std::pair<mState, std::string>> command_map = {
         {"exit", {EXIT, "Exit app"}},
         {"help", {HELP, "Show this list"}}
 };
-
-
+void reset_terminal() {
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios) == -1) {
+        perror("tcsetattr");
+    }
+    rl_cleanup_after_signal();
+}
 void check_arguments(int argc, char* argv[]){
 
     if (argc > 1 && std::string(argv[1]) == "-I") {
@@ -53,17 +60,28 @@ void console_input_listener(mState& state,
                         std::atomic<bool>& exit_flag
                         )
 {
-    std::string input;
+    const char* prompt = "\033[1;32m$$\033[0m ";    
     pid_t tid = syscall(SYS_gettid); 
+
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
     INFO("Console listener Thread LWP ID: " << tid);
-    while (!exit_flag.load()) {
+    while (!exit_flag) {
         if(exit_flag) break;
-        if (!std::getline(std::cin, input) || std::cin.eof()) {
+        char* input = nullptr;
+        input = readline(prompt);
+
+        if (input == nullptr || std::cin.eof()) {
             break;
         }
+        add_history(input);
+
+        std::string cmd(input);
+        free(input);
         {
             std::lock_guard<std::mutex> lock(state_mutex);
-            data_queue.push(input);
+            data_queue.push(cmd);
             state_cv.notify_all();
             if (input == "exit") {
                 state = EXIT;
@@ -89,7 +107,7 @@ void decode_cmd(std::string cmd, mState& state, mState& prev_state, std::conditi
         std::cout << "Unknown command. ";
         state = HELP;
     }
-    INFO("State changed from " << prev_state << " to " << state );
+    //INFO("State changed from " << prev_state << " to " << state );
     prev_state = state;
     //INFO("Left cmd decoder..." );
 }
@@ -106,21 +124,18 @@ void state_machine(mState& state,
 {
     pid_t tid = syscall(SYS_gettid); 
     INFO( "State Machine Thread LWP ID: " << tid );
-    int files_in_folder = 0;
     bool idle_msg_printed = false;
-    bool auto_process = false;
     bool init_done = false;
-    std::chrono::steady_clock::time_point start, interlude, stop; 
-    std::chrono::milliseconds duration_ms; 
-    std::chrono::microseconds duration_us;
 
-    while (state != EXIT) {
+    //while (state != EXIT) {
+    while(!exit_flag){
         switch (state) {
             case IDLE: {
+                /*
                 if (!idle_msg_printed) {
-                    std::cout << "In IDLE state, waiting for commands:" << std::endl;
+                    std::cout << "In IDLE state, waiting for commands:\n";
                     idle_msg_printed = true;
-                }
+                }*/
                 std::lock_guard<std::mutex> lock(state_mutex);
                 if (!data_queue.empty()) {
                     state = mState::READ_CMD;
@@ -138,7 +153,7 @@ void state_machine(mState& state,
                 break;
             }
             case READ_CMD: {
-                INFO("In READ_CMD state" );
+                //INFO("In READ_CMD state" );
                 std::string cmd;
                 {
                     std::lock_guard<std::mutex> lock(state_mutex);
@@ -146,7 +161,7 @@ void state_machine(mState& state,
                     data_queue.pop();
                 }
                 idle_msg_printed = false;
-                INFO("Received command: " << cmd);
+                //INFO("Received command: " << cmd);
                 decode_cmd(cmd, state, prev_state, state_cv);
                 break;
             }      
@@ -163,6 +178,7 @@ void state_machine(mState& state,
                 {
                     std::lock_guard<std::mutex> lock(state_mutex);
                     exit_flag = true;
+                    state_cv.notify_all();
                 }
                 break;
             }
@@ -173,6 +189,7 @@ void state_machine(mState& state,
         }
     }
     INFO("Left state machine...");
+    reset_terminal();
     exit(0); // TODO: resolve thread exit when with serial thread.
 }
 
@@ -180,6 +197,12 @@ void state_machine(mState& state,
 int main(int argc, char* argv[])
 {
     INFO("Starting program...");
+
+    if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) {
+        perror("tcgetattr");
+        return 1;
+    }
+
     check_arguments(argc, argv);
 #ifndef DEBUG
     if (lockfile_exists()) {
@@ -238,6 +261,8 @@ int main(int argc, char* argv[])
 
     state_machine_thread.join();
     console_thread.join();
+
+    
 
     INFO("Program finished.");
 

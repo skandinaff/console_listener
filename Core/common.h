@@ -18,6 +18,8 @@
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #ifdef IS_ARMBIAN
     static constexpr auto serial_port_name = "/dev/ttyS1";
@@ -41,17 +43,5 @@ extern std::mutex state_mutex;
 extern std::condition_variable state_cv;
 extern std::atomic<bool> exit_flag;
 extern std::atomic<bool> data_ready;
-
-
-/// @brief adds a path /home/<username> to a <filename>
-/// @param filename 
-/// @return "/home/<username>/<filename>"
-inline std::string addHomePath(const std::string& filename) {
-    std::filesystem::path executablePath = std::filesystem::canonical("/proc/self/exe");
-    std::filesystem::path baseDir = executablePath.parent_path().parent_path().parent_path();  // Adjust the parent_path() calls as needed
-    std::filesystem::path configPath = baseDir / filename;
-    return configPath.string();
-}
-
 
 #endif

@@ -21,7 +21,7 @@ find_package(Threads REQUIRED)
 
 
 if (IS_ARMBIAN OR IS_RASPBIAN)
-    target_compile_definitions(CL PRIVATE WITH_SERIAL)
+    #target_compile_definitions(CL PRIVATE WITH_SERIAL)
     if(IS_ARMBIAN)
         target_compile_definitions(CL PRIVATE IS_ARMBIAN)
     elseif(IS_RASPBIAN)
@@ -36,6 +36,10 @@ endif()
 target_include_directories(CL PRIVATE 
         Threads::Threads
         )
+target_link_libraries(CL PRIVATE
+        readline
+        )   
+
 # Set the output directory for the executable
 set_target_properties(CL PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"

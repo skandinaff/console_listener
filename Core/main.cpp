@@ -17,6 +17,7 @@
 #include "lockfile.hpp"
 
 
+
 using namespace std;
 using namespace boost::asio;
 
@@ -67,6 +68,7 @@ void serial_port_listener(mState& state,
                         )
 {
     pid_t tid = syscall(SYS_gettid); std::cout << "Serial Port Thread LWP ID: " << tid << std::endl;
+    //DEBUG_PRINT("Serial Port Thread LWP ID: ", tid);
     while (!exit_flag.load()) {
         if(exit_flag) break;
         std::string line;
@@ -93,7 +95,9 @@ void console_input_listener(mState& state,
                         )
 {
     std::string input;
-    pid_t tid = syscall(SYS_gettid); std::cout << "Console listener Thread LWP ID: " << tid << std::endl;
+    pid_t tid = syscall(SYS_gettid); 
+    //std::cout << "Console listener Thread LWP ID: " << tid << std::endl;
+    //DEBUG_PRINT("Console listener Thread LWP ID: ", tid);
     while (!exit_flag.load()) {
         if(exit_flag) break;
         if (!std::getline(std::cin, input) || std::cin.eof()) {

@@ -1,13 +1,15 @@
-cmake_minimum_required(VERSION 3.0)
-project(CL)
+cmake_minimum_required(VERSION 3.2)
+project(CL VERSION 1.0 LANGUAGES C CXX)
 include(CheckSystem.cmake)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 22)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -fPIC")
+message(STATUS "C++ Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+set(CMAKE_SYSTEM_NAME Linux)
 
 set(SOURCES
-        Core/main.cpp
+        src/main.cpp
         )
 
 if (IS_ARMBIAN OR IS_RASPBIAN)
@@ -37,12 +39,15 @@ target_include_directories(CL PRIVATE
         Threads::Threads
         )
 target_link_libraries(CL PRIVATE
+        serial 
         readline
+        Threads::Threads
+        ${Boost_LIBRARIES}
         )   
 
 # Set the output directory for the executable
 set_target_properties(CL PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}usr/local/bin"
 )
 
 add_custom_command(TARGET CL POST_BUILD
@@ -55,3 +60,11 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_options(CL PRIVATE -O3)
 endif()
+
+set(CPACK_GENERATOR "DEB")
+#set(CPACK_PACKAGE_NAME "daccp")
+set(CPACK_PACKAGE_NAME "CL")
+set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_PACKAGE_CONTACT "sevalks@gmail.com")
+
+include(CPack)
